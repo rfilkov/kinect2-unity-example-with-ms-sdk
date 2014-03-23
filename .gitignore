@@ -1,0 +1,5 @@
+*.csproj
+*.pidb
+*.sln
+*.userprefs
+/Kinect20.dll
