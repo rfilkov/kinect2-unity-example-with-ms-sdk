@@ -85,7 +85,7 @@ public class PointManController : MonoBehaviour
 		transform.position = initialPosOffset + (MoveVertically ? posPointMan : new Vector3(posPointMan.x, 0, posPointMan.z));
 		
 		// update the local positions of the bones
-		for(int i = 0; i < 20; i++) 
+		for(int i = 0; i < bones.Length; i++) 
 		{
 			if(bones[i] != null)
 			{

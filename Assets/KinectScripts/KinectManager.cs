@@ -292,9 +292,9 @@ public class KinectManager : MonoBehaviour
 		
 		// calculate map width and height in percent, if needed
 		if(MapsPercentWidth == 0f)
-			MapsPercentWidth = (KinectWrapper.Constants.DepthImageWidth) / cameraRect.width;
+			MapsPercentWidth = (KinectWrapper.Constants.DepthImageWidth / 2) / cameraRect.width;
 		if(MapsPercentHeight == 0f)
-			MapsPercentHeight = (KinectWrapper.Constants.DepthImageHeight) / cameraRect.height;
+			MapsPercentHeight = (KinectWrapper.Constants.DepthImageHeight / 2) / cameraRect.height;
 		
 		if(ComputeUserMap)
 		{
