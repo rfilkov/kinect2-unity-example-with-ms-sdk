@@ -12,19 +12,24 @@ public class KinectWrapper
 	{
 		public const int BodyCount = 6;
 		public const int JointCount = 25;
+
+		public const int ColorImageWidth = 1920;
+		public const int ColorImageHeight = 1080;
+		public const int DepthImageWidth = 512;
+		public const int DepthImageHeight = 424;
 	}
 	
 	/// Data structures for interfacing C# with the native wrapper
 
     [Flags]
-    public enum NuiInitializeFlags : uint
+    public enum FrameSource : uint
     {
-		UsesAudio = 0x10000000,
-        UsesDepthAndPlayerIndex = 0x00000001,
-        UsesColor = 0x00000002,
-        UsesSkeleton = 0x00000008,
-        UsesDepth = 0x00000020,
-		UsesHighQualityColor = 0x00000040
+        TypeColor = 0x1,
+        TypeInfrared = 0x2,
+        TypeDepth = 0x8,
+        TypeBodyIndex = 0x10,
+        TypeBody = 0x20,
+        TypeAudio = 0x40
     }
 	
 	public enum NuiErrorCodes : uint
@@ -162,6 +167,39 @@ public class KinectWrapper
 		}
     }
 	
+	public struct ColorBuffer
+	{
+		[MarshalAs(UnmanagedType.ByValArray, SizeConst = Constants.ColorImageWidth * Constants.ColorImageHeight, ArraySubType = UnmanagedType.U4)]
+		public Color32[] pixels;
+		
+		public ColorBuffer(bool bInit)
+		{
+			pixels = new Color32[Constants.ColorImageWidth * Constants.ColorImageHeight];
+		}
+	}
+	
+	public struct DepthBuffer
+	{
+		[MarshalAs(UnmanagedType.ByValArray, SizeConst = Constants.DepthImageWidth * Constants.DepthImageHeight, ArraySubType = UnmanagedType.U2)]
+		public ushort[] pixels;
+		
+		public DepthBuffer(bool bInit)
+		{
+			pixels = new ushort[Constants.ColorImageWidth * Constants.ColorImageHeight];
+		}
+	}
+	
+	public struct BodyIndexBuffer
+	{
+		[MarshalAs(UnmanagedType.ByValArray, SizeConst = Constants.DepthImageWidth * Constants.DepthImageHeight, ArraySubType = UnmanagedType.U1)]
+		public byte[] pixels;
+		
+		public BodyIndexBuffer(bool bInit)
+		{
+			pixels = new byte[Constants.ColorImageWidth * Constants.ColorImageHeight];
+		}
+	}
+	
 
 	// Wrapped native functions
 	
@@ -171,7 +209,7 @@ public class KinectWrapper
 
 	// Initializes the default Kinect sensor
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
-	public static extern int InitDefaultKinectSensor(NuiInitializeFlags dwFlags, bool bEnableEvents);
+	public static extern int InitDefaultKinectSensor(FrameSource dwFlags, int iColorWidth, int iColorHeight);
 	
 	// Shuts down the opened Kinect2 sensor
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
@@ -184,6 +222,27 @@ public class KinectWrapper
 	// Returns the latest body frame data available
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
 	public static extern int GetBodyFrameData(ref BodyFrame pBodyFrame, bool bGetOrientations, bool bGetHandStates);
+	
+
+	// Polls frame data from all opened image streams
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int PollImageFrameData(FrameSource dwFlags);
+	
+	// Gets the new color frame, if one is available. Returns S_OK if a new frame is available
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetNewColorFrameData(ref IntPtr pColorFrame, ref Int64 liFrameTime);
+	
+	// Gets the new depth frame, if one available. Returns S_OK if a new frame is available
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetNewDepthFrameData(ref IntPtr pDepthFrame, ref Int64 liFrameTime, ref int iMinDepth, ref int iMaxDepth);
+	
+	// Gets the new infrared frame, if one available. Returns S_OK if a new frame is available
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetNewInfraredFrameData(ref IntPtr pInfraredFrame, ref Int64 liFrameTime);
+	
+	// Gets the new body index frame, if one available. Returns S_OK if a new frame is available
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetNewBodyIndexFrameData(ref IntPtr pBodyIndexFrame, ref Int64 liFrameTime);
 	
 
 	// Public unility functions
@@ -265,6 +324,59 @@ public class KinectWrapper
 		}
 		
 		return newSkeleton;
+	}
+	
+	// Polls for new color frame data
+	public static bool PollColorFrame(ref ColorBuffer colorImage)
+	{
+		bool bNewFrame = false;
+
+		IntPtr imagePtr = IntPtr.Zero;
+		Int64 liFrameTime = 0;
+	
+		int hr = PollImageFrameData(FrameSource.TypeColor);
+		if (hr == 0)
+		{
+			hr = GetNewColorFrameData(ref imagePtr, ref liFrameTime);
+			
+			if(hr == 0)
+			{
+				colorImage = (ColorBuffer)Marshal.PtrToStructure(imagePtr, typeof(ColorBuffer));
+				bNewFrame = true;
+			}
+		}
+		
+		return bNewFrame;
+	}
+	
+	public static bool PollDepthFrame(ref DepthBuffer depthImage, ref BodyIndexBuffer bodyIndexImage, ref int minDepth, ref int maxDepth)
+	{
+		bool bNewFrame = false;
+
+		IntPtr imagePtr = IntPtr.Zero;
+		Int64 liFrameTime = 0;
+	
+		int hr = PollImageFrameData(FrameSource.TypeDepth | FrameSource.TypeBodyIndex);
+		if (hr == 0)
+		{
+			hr = GetNewDepthFrameData(ref imagePtr, ref liFrameTime, ref minDepth, ref maxDepth);
+			
+			if(hr == 0)
+			{
+				depthImage = (DepthBuffer)Marshal.PtrToStructure(imagePtr, typeof(DepthBuffer));
+				bNewFrame = true;
+			}
+
+			hr = GetNewBodyIndexFrameData(ref imagePtr, ref liFrameTime);
+			
+			if(hr == 0)
+			{
+				bodyIndexImage = (BodyIndexBuffer)Marshal.PtrToStructure(imagePtr, typeof(BodyIndexBuffer));
+				bNewFrame = true;
+			}
+		}
+		
+		return bNewFrame;
 	}
 	
 }

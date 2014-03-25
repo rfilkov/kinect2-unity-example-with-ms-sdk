@@ -11,6 +11,26 @@ public class KinectManager : MonoBehaviour
 	// How high off the ground is the sensor (in meters).
 	public float sensorHeight = 1.0f;
 
+	// Public Bool to determine whether to receive and compute the user map
+	public bool ComputeUserMap = false;
+	
+	// Public Bool to determine whether to receive and compute the color map
+	public bool ComputeColorMap = false;
+	
+	// Public Bool to determine whether to display user map on the GUI
+	public bool DisplayUserMap = false;
+	
+	// Public Bool to determine whether to display color map on the GUI
+	public bool DisplayColorMap = false;
+	
+	// Public Bool to determine whether to display the skeleton lines on user map
+	public bool DisplaySkeletonLines = false;
+	
+	// Public Floats to specify the width and height of the depth and color maps as % of the camera width and height
+	// if percents are zero, they are calculated based on actual Kinect image´s width and height
+	public float MapsPercentWidth = 0f;
+	public float MapsPercentHeight = 0f;
+	
 	// Minimum user distance in order to process skeleton data
 	public float minUserDistance = 1.0f;
 	
@@ -32,6 +52,23 @@ public class KinectManager : MonoBehaviour
 
 	// KinectServer instance
 	private KinectServer kinectServer = null;
+	
+	// Depth and user maps
+	private KinectWrapper.DepthBuffer depthImage;
+	private KinectWrapper.BodyIndexBuffer bodyIndexImage;
+	private Texture2D usersLblTex;
+	private Rect usersMapRect;
+	private Color32[] usersMapColors;
+	private ushort[] usersPrevState;
+	private float[] usersHistogramMap;
+	private int usersMapSize;
+	private int minDepth;
+	private int maxDepth;
+	
+	// Color map
+	private KinectWrapper.ColorBuffer colorImage;
+	private Texture2D usersClrTex;
+	private Rect usersClrRect;
 	
 	// Kinect body frame data
 	private KinectWrapper.BodyFrame bodyFrame;
@@ -67,6 +104,18 @@ public class KinectManager : MonoBehaviour
 	public bool IsInitialized()
 	{
 		return kinectInitialized;
+	}
+	
+	// returns the depth image/users histogram texture,if ComputeUserMap is true
+    public Texture2D GetUsersLblTex()
+    { 
+		return usersLblTex;
+	}
+	
+	// returns the color image texture,if ComputeColorMap is true
+    public Texture2D GetUsersClrTex()
+    { 
+		return usersClrTex;
 	}
 	
 	// returns true if at least one user is currently detected by the sensor
@@ -206,14 +255,17 @@ public class KinectManager : MonoBehaviour
 			}
 			
 			// try to initialize the default Kinect2 sensor
-			hr = KinectWrapper.InitDefaultKinectSensor(KinectWrapper.NuiInitializeFlags.UsesSkeleton, false);
+			KinectWrapper.FrameSource dwFlags = KinectWrapper.FrameSource.TypeBody;
+			if(ComputeColorMap)
+				dwFlags |= KinectWrapper.FrameSource.TypeColor;
+			if(ComputeUserMap)
+				dwFlags |= KinectWrapper.FrameSource.TypeDepth | KinectWrapper.FrameSource.TypeBodyIndex | KinectWrapper.FrameSource.TypeInfrared;
+			
+			hr = KinectWrapper.InitDefaultKinectSensor(dwFlags, KinectWrapper.Constants.ColorImageWidth, KinectWrapper.Constants.ColorImageHeight);
             if (hr != 0)
 			{
             	throw new Exception("InitDefaultKinectSensor failed");
 			}
-			
-			// init skeleton structures
-			bodyFrame = new KinectWrapper.BodyFrame(true);
 
 			// transform matrix - kinect to world
 			kinectToWorld.SetTRS(new Vector3(0.0f, sensorHeight, 0.0f), Quaternion.identity, Vector3.one);
@@ -230,6 +282,48 @@ public class KinectManager : MonoBehaviour
 			}
 			
 			return;
+		}
+		
+		// init skeleton structures
+		bodyFrame = new KinectWrapper.BodyFrame(true);
+		
+		// get the main camera rectangle
+		Rect cameraRect = Camera.main.pixelRect;
+		
+		// calculate map width and height in percent, if needed
+		if(MapsPercentWidth == 0f)
+			MapsPercentWidth = (KinectWrapper.Constants.DepthImageWidth) / cameraRect.width;
+		if(MapsPercentHeight == 0f)
+			MapsPercentHeight = (KinectWrapper.Constants.DepthImageHeight) / cameraRect.height;
+		
+		if(ComputeUserMap)
+		{
+			// init user-depth structures
+			//depthImage = new KinectWrapper.DepthBuffer(true);
+			//bodyIndexImage = new KinectWrapper.BodyIndexBuffer(true);
+			
+	        // Initialize depth & label map related stuff
+	        usersMapSize = KinectWrapper.Constants.DepthImageWidth * KinectWrapper.Constants.DepthImageHeight;
+	        usersLblTex = new Texture2D(KinectWrapper.Constants.DepthImageWidth, KinectWrapper.Constants.DepthImageHeight);
+	        usersMapColors = new Color32[usersMapSize];
+			usersPrevState = new ushort[usersMapSize];
+	        usersMapRect = new Rect(cameraRect.width - cameraRect.width * MapsPercentWidth, cameraRect.height, cameraRect.width * MapsPercentWidth, -cameraRect.height * MapsPercentHeight);
+	        usersHistogramMap = new float[8192];
+		}
+		
+		if(ComputeColorMap)
+		{
+			// init color image structures
+			//colorImage = new KinectWrapper.ColorBuffer(true);
+			
+			// Initialize color map related stuff
+	        usersClrTex = new Texture2D(KinectWrapper.Constants.ColorImageWidth, KinectWrapper.Constants.ColorImageHeight);
+	        usersClrRect = new Rect(cameraRect.width - cameraRect.width * MapsPercentWidth, cameraRect.height, cameraRect.width * MapsPercentWidth, -cameraRect.height * MapsPercentHeight);
+			
+			if(ComputeUserMap)
+			{
+				usersMapRect.x -= cameraRect.width * MapsPercentWidth; //usersClrTex.width / 2;
+			}
 		}
 		
         // Initialize user list to contain all users.
@@ -275,12 +369,11 @@ public class KinectManager : MonoBehaviour
 		return iPing;
 	}
 	
-	// Shut down the Kinect on quitting.
 	void OnApplicationQuit()
 	{
+		// shut down the Kinect on quitting.
 		if(kinectInitialized)
 		{
-			// Shutdown OpenNI
 			KinectWrapper.ShutdownKinectSensor();
 			instance = null;
 		}
@@ -292,10 +385,42 @@ public class KinectManager : MonoBehaviour
 		}
 	}
 	
+    void OnGUI()
+    {
+		if(kinectInitialized)
+		{
+	        if(ComputeUserMap && DisplayUserMap)
+	        {
+	            GUI.DrawTexture(usersMapRect, usersLblTex);
+	        }
+
+			if(ComputeColorMap && DisplayColorMap)
+			{
+				GUI.DrawTexture(usersClrRect, usersClrTex);
+			}
+		}
+    }
+	
 	void Update() 
 	{
 		if(kinectInitialized)
 		{
+			if(ComputeUserMap)
+			{
+				if(KinectWrapper.PollDepthFrame(ref depthImage, ref bodyIndexImage, ref minDepth, ref maxDepth))
+				{
+		        	UpdateUserMap();
+				}
+			}
+			
+			if(ComputeColorMap)
+			{
+				if(KinectWrapper.PollColorFrame(ref colorImage))
+				{
+					UpdateColorMap();
+				}
+			}
+			
 			if(KinectWrapper.PollSkeleton(ref bodyFrame, lastFrameTime))
 			{
 				lastFrameTime = bodyFrame.liRelativeTime;
@@ -303,6 +428,103 @@ public class KinectManager : MonoBehaviour
 			}
 			
 		}
+	}
+	
+    void UpdateUserMap()
+    {
+        int numOfPoints = 0;
+		Array.Clear(usersHistogramMap, 0, usersHistogramMap.Length);
+
+        // Calculate cumulative histogram for depth
+        for (int i = 0; i < usersMapSize; i++)
+        {
+            // Only calculate for depth that contains users
+            if (bodyIndexImage.pixels[i] != 255)
+            {
+                usersHistogramMap[depthImage.pixels[i]]++;
+                numOfPoints++;
+            }
+        }
+		
+        if (numOfPoints > 0)
+        {
+            for (int i = 1; i < usersHistogramMap.Length; i++)
+	        {   
+		        usersHistogramMap[i] += usersHistogramMap[i-1];
+	        }
+			
+            for (int i = 0; i < usersHistogramMap.Length; i++)
+	        {
+                usersHistogramMap[i] = 1.0f - (usersHistogramMap[i] / numOfPoints);
+	        }
+        }
+		
+        // Create the actual users texture based on label map and depth histogram
+		Color32 clrClear = Color.clear;
+		
+        for (int i = 0; i < usersMapSize; i++)
+        {
+	        // Flip the texture as we convert label map to color array
+            int flipIndex = i; // usersMapSize - i - 1;
+			
+			byte userMap = bodyIndexImage.pixels[i];
+			ushort userDepth = depthImage.pixels[i];
+			
+			ushort nowUserPixel = userMap != 255 ? (ushort)((userMap << 13) | userDepth) : userDepth;
+			ushort wasUserPixel = usersPrevState[flipIndex];
+			
+			// draw only the changed pixels
+			if(nowUserPixel != wasUserPixel)
+			{
+				usersPrevState[flipIndex] = nowUserPixel;
+				
+	            if (userMap == 255)
+	            {
+	                usersMapColors[flipIndex] = clrClear;
+	            }
+	            else
+	            {
+//					if(colorImage != null)
+//					{
+//	
+//					}
+//					else
+					{
+		                // Create a blending color based on the depth histogram
+						float histDepth = usersHistogramMap[userDepth];
+		                Color c = new Color(histDepth, histDepth, histDepth, 0.9f);
+		                
+						switch(userMap % 4)
+		                {
+		                    case 0:
+		                        usersMapColors[flipIndex] = Color.red * c;
+		                        break;
+		                    case 1:
+		                        usersMapColors[flipIndex] = Color.green * c;
+		                        break;
+		                    case 2:
+		                        usersMapColors[flipIndex] = Color.blue * c;
+		                        break;
+		                    case 3:
+		                        usersMapColors[flipIndex] = Color.magenta * c;
+		                        break;
+		                }
+					}
+	            }
+				
+			}
+        }
+		
+		// Draw it!
+        usersLblTex.SetPixels32(usersMapColors);
+        usersLblTex.Apply();
+    }
+	
+	// Update the color image
+	void UpdateColorMap()
+	{
+        usersClrTex.SetPixels32(colorImage.pixels);
+        usersClrTex.Apply();
 	}
 	
 	// Processes body frame data
@@ -360,8 +582,17 @@ public class KinectManager : MonoBehaviour
 					for (int j = 0; j < KinectWrapper.Constants.JointCount; j++)
 					{
 						bodyData.joint[j].position = kinectToWorld.MultiplyPoint3x4(bodyData.joint[j].position);
-					}
 					
+						if((bodyData.liTrackingID == liFirstUserId) && (j == (int)KinectWrapper.JointType.HipCenter))
+						{
+							string debugText = String.Format("Body Pos: {0}", bodyData.joint[j].position);
+							
+							if(calibrationText && bodyData.joint[j].trackingState == KinectWrapper.TrackingState.Tracked)
+							{
+								calibrationText.guiText.text = debugText;
+							}
+						}
+					}
 				}
 //				else
 //				{

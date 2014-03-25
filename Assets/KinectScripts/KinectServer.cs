@@ -20,12 +20,13 @@ public class KinectServer
         procServer.StartInfo.FileName = Application.dataPath + @"/../KinectServer/Kinect2UnityServer.exe";
 		procServer.StartInfo.WorkingDirectory = Application.dataPath + @"/../KinectServer";
         procServer.StartInfo.UseShellExecute = false;
-        procServer.StartInfo.CreateNoWindow = true;
+        procServer.StartInfo.CreateNoWindow = false;
+		procServer.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Minimized;
         procServer.StartInfo.RedirectStandardInput = true;
-        procServer.StartInfo.RedirectStandardOutput = true;
-        procServer.StartInfo.RedirectStandardError = true;
-        procServer.OutputDataReceived += (sender, args) => Debug.Log(args.Data);
-        procServer.ErrorDataReceived += (sender, args) => Debug.LogError(args.Data);
+//        procServer.StartInfo.RedirectStandardOutput = true;
+//        procServer.StartInfo.RedirectStandardError = true;
+//        procServer.OutputDataReceived += (sender, args) => Debug.Log(args.Data);
+//        procServer.ErrorDataReceived += (sender, args) => Debug.LogError(args.Data);
 		
         try
         {
@@ -42,8 +43,8 @@ public class KinectServer
             return;
         }
 
-        procServer.BeginOutputReadLine();
-        //procServer.StandardInput.Write("0"); // gets rid of the Byte-order mark in the pipe.
+        //procServer.BeginOutputReadLine();
+        ////procServer.StandardInput.Write("0"); // gets rid of the Byte-order mark in the pipe.
     }
 
     public void ShutdownKinectServer()
