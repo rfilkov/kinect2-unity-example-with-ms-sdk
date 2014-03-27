@@ -13,8 +13,8 @@ public class KinectWrapper
 		public const int BodyCount = 6;
 		public const int JointCount = 25;
 
-		public const int ColorImageWidth = 1920;
-		public const int ColorImageHeight = 1080;
+		public const int ColorImageWidth = 480; // 960; // 1920;
+		public const int ColorImageHeight = 270; // 540; // 1080;
 		public const int DepthImageWidth = 512;
 		public const int DepthImageHeight = 424;
 	}
@@ -122,6 +122,7 @@ public class KinectWrapper
     	public JointType jointType;
     	public TrackingState trackingState;
     	public Vector3 position;
+		public Vector3 direction;
 		public Quaternion orientation;
     }
 	
@@ -310,6 +311,36 @@ public class KinectWrapper
 		}
 		
 		return message;
+	}
+	
+	// returns the parent joint
+	JointType GetParentJoint(JointType joint)
+	{
+		switch(joint)
+		{
+			case JointType.HipCenter:
+				return JointType.HipCenter;
+		
+			case JointType.Neck:
+				return JointType.SpineShoulder;
+		
+			case JointType.SpineShoulder:
+				return JointType.Spine;
+		
+			case JointType.HipLeft:
+			case JointType.HipRight:
+				return JointType.HipCenter;
+		
+			case JointType.HandTipLeft:
+			case JointType.ThumbLeft:
+				return JointType.HandLeft;
+		
+			case JointType.HandTipRight:
+			case JointType.ThumbRight:
+				return JointType.HandRight;
+		}
+	
+		return (JointType)((int)joint - 1);
 	}
 	
 	// Polls for new skeleton data
