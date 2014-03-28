@@ -124,16 +124,33 @@ public class KinectManager : MonoBehaviour
 		return kinectInitialized && (allUserIds.Count > 0);
 	}
 	
-	// returns the UserID of the first (or closest) user, if any
-	public Int64 GetFirstUser()
-	{
-		return liFirstUserId;
-	}
-	
 	// returns true if the User is calibrated and ready to use
 	public bool IsUserCalibrated(Int64 userId)
 	{
 		return userIdIndex.ContainsKey(userId);
+	}
+	
+	// returns the number of currently detected users
+	public int GetUsersCount()
+	{
+		return allUserIds.Count;
+	}
+	
+	// returns the UserID by the given index
+	public Int64 GetUserByIndex(int i)
+	{
+		if(i >= 0 && i < allUserIds.Count)
+		{
+			return allUserIds[i];
+		}
+		
+		return 0;
+	}
+	
+	// returns the UserID of the first (or closest) user, if any
+	public Int64 GetFirstUser()
+	{
+		return liFirstUserId;
 	}
 	
 	// returns the User position, relative to the Kinect-sensor, in meters
@@ -207,6 +224,27 @@ public class KinectManager : MonoBehaviour
 				{
 					KinectWrapper.Joint jointData = bodyFrame.bodyData[index].joint[joint];
 					return jointData.position;
+				}
+			}
+		}
+		
+		return Vector3.zero;
+	}
+	
+	// returns the joint direction of the specified user, relative to the parent joint
+	public Vector3 GetJointDirection(Int64 userId, int joint)
+	{
+		if(userIdIndex.ContainsKey(userId))
+		{
+			int index = userIdIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				if(joint >= 0 && joint < KinectWrapper.Constants.JointCount)
+				{
+					KinectWrapper.Joint jointData = bodyFrame.bodyData[index].joint[joint];
+					return jointData.direction;
 				}
 			}
 		}

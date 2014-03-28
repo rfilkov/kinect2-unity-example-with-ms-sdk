@@ -11,6 +11,7 @@ public class PointManController : MonoBehaviour
 	
 	public GameObject Hip_Center;
 	public GameObject Spine;
+	public GameObject Spine_Shoulder;
 	public GameObject Neck;
 	public GameObject Head;
 	public GameObject Shoulder_Left;
@@ -30,7 +31,10 @@ public class PointManController : MonoBehaviour
 	public GameObject Ankle_Right;
 	public GameObject Foot_Right;
 	
-	private GameObject[] bones; 
+	public LineRenderer LinePrefab;
+	
+	private GameObject[] bones;
+	private LineRenderer[] lines;
 	
 	private Vector3 initialPosition;
 	private Quaternion initialRotation;
@@ -41,13 +45,24 @@ public class PointManController : MonoBehaviour
 	void Start () 
 	{
 		//store bones in a list for easier access
-		bones = new GameObject[20] {
-			Hip_Center, Spine, Neck, Head,
+		bones = new GameObject[] {
+			Hip_Center, Spine, Spine_Shoulder, Neck, Head,
 			Shoulder_Left, Elbow_Left, Wrist_Left, Hand_Left,
 			Shoulder_Right, Elbow_Right, Wrist_Right, Hand_Right,
 			Hip_Left, Knee_Left, Ankle_Left, Foot_Left,
 			Hip_Right, Knee_Right, Ankle_Right, Foot_Right
 		};
+		
+		// array holding the skeleton lines
+		lines = new LineRenderer[bones.Length];
+		
+		if(LinePrefab)
+		{
+			for(int i = 0; i < lines.Length; i++)
+			{
+				lines[i] = Instantiate(LinePrefab) as LineRenderer;
+			}
+		}
 		
 		initialPosition = transform.position;
 		initialRotation = transform.rotation;
@@ -93,7 +108,7 @@ public class PointManController : MonoBehaviour
 				{
 					bones[i].gameObject.SetActive(true);
 					
-					int joint = i; // MirroredMovement ? KinectWrapper.GetSkeletonMirroredJoint(i): i;
+					int joint = MirroredMovement ? (int)KinectWrapper.GetMirrorJoint((KinectWrapper.JointType)i): i;
 					Vector3 posJoint = KinectManager.Instance.GetJointPosition(userID, joint);
 					posJoint.z = !MirroredMovement ? -posJoint.z : posJoint.z;
 					Quaternion rotJoint = KinectManager.Instance.GetJointOrientation(userID, joint, !MirroredMovement);
@@ -108,10 +123,30 @@ public class PointManController : MonoBehaviour
 
 					bones[i].transform.localPosition = posJoint;
 					bones[i].transform.localRotation = rotJoint;
+					
+					if(LinePrefab)
+					{
+						lines[i].gameObject.SetActive(true);
+						
+						Vector3 dirFromParent = KinectManager.Instance.GetJointDirection(userID, joint);
+						dirFromParent.z = !MirroredMovement ? -dirFromParent.z : dirFromParent.z;
+						
+						Vector3 posJoint2 = bones[i].transform.position;
+						Vector3 posParent = posJoint2 - dirFromParent;
+						
+						//lines[i].SetVertexCount(2);
+						lines[i].SetPosition(0, posParent);
+						lines[i].SetPosition(1, posJoint2);
+					}
 				}
 				else
 				{
 					bones[i].gameObject.SetActive(false);
+					
+					if(LinePrefab)
+					{
+						lines[i].gameObject.SetActive(false);
+					}
 				}
 			}	
 		}
