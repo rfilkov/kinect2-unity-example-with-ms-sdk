@@ -201,8 +201,25 @@ public class KinectWrapper
 		}
 	}
 	
+	public struct UserHistogramBuffer
+	{
+		[MarshalAs(UnmanagedType.ByValArray, SizeConst = Constants.DepthImageWidth * Constants.DepthImageHeight, ArraySubType = UnmanagedType.U4)]
+		public Color32[] pixels;
+		
+		public UserHistogramBuffer(bool bInit)
+		{
+			pixels = new Color32[Constants.DepthImageWidth * Constants.DepthImageHeight];
+		}
+	}
+	
 
 	// Wrapped native functions
+	// the version, the sample is built upon:
+	[DllImport("Kernel32.dll", SetLastError = true)]
+	static extern uint FormatMessage( uint dwFlags, IntPtr lpSource, uint dwMessageId, uint dwLanguageId, ref IntPtr lpBuffer, uint nSize, IntPtr pArguments);
+
+ 	[DllImport("kernel32.dll", SetLastError = true)]
+	static extern IntPtr LocalFree(IntPtr hMem);
 	
 	// Pings the server
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
@@ -245,71 +262,47 @@ public class KinectWrapper
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
 	public static extern int GetNewBodyIndexFrameData(ref IntPtr pBodyIndexFrame, ref Int64 liFrameTime);
 	
+	// Gets the new users' histogram frame, if one available. Returns S_OK if a new frame is available
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetUserHistogramFrameData(ref IntPtr pUserHistogramFrame, ref Int64 liFrameTime, bool bUseColorData);
+	
 
 	// Public unility functions
 	
-	// Returns the NUI error message
-	public static string GetNuiErrorString(int hr)
+	// Returns the system error message
+	public static string GetSystemErrorMessage(int hr)
 	{
 		string message = string.Empty;
 		uint uhr = (uint)hr;
 		
-		switch(uhr)
-		{
-			case (uint)NuiErrorCodes.FrameNoData:
-				message = "Frame contains no data.";
-				break;
-			case (uint)NuiErrorCodes.StreamNotEnabled:
-				message = "Stream is not enabled.";
-				break;
-			case (uint)NuiErrorCodes.ImageStreamInUse:
-				message = "Image stream is already in use.";
-				break;
-			case (uint)NuiErrorCodes.FrameLimitExceeded:
-				message = "Frame limit is exceeded.";
-				break;
-			case (uint)NuiErrorCodes.FeatureNotInitialized:
-				message = "Feature is not initialized.";
-				break;
-			case (uint)NuiErrorCodes.DeviceNotGenuine:
-				message = "Device is not genuine.";
-				break;
-			case (uint)NuiErrorCodes.InsufficientBandwidth:
-				message = "Bandwidth is not sufficient.";
-				break;
-			case (uint)NuiErrorCodes.DeviceNotSupported:
-				message = "Device is not supported (e.g. Kinect for XBox 360).";
-				break;
-			case (uint)NuiErrorCodes.DeviceInUse:
-				message = "Device is already in use.";
-				break;
-			case (uint)NuiErrorCodes.DatabaseNotFound:
-				message = "Database not found.";
-				break;
-			case (uint)NuiErrorCodes.DatabaseVersionMismatch:
-				message = "Database version mismatch.";
-				break;
-			case (uint)NuiErrorCodes.HardwareFeatureUnavailable:
-				message = "Hardware feature is not available.";
-				break;
-			case (uint)NuiErrorCodes.DeviceNotConnected:
-				message = "Device is not connected.";
-				break;
-			case (uint)NuiErrorCodes.DeviceNotReady:
-				message = "Device is not ready.";
-				break;
-			case (uint)NuiErrorCodes.SkeletalEngineBusy:
-				message = "Skeletal engine is busy.";
-				break;
-			case (uint)NuiErrorCodes.DeviceNotPowered:
-				message = "Device is not powered.";
-				break;
-				
-			default:
-				message = "hr=0x" + uhr.ToString("X");
-				break;
-		}
+	    const uint FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x00000100;
+	    const uint FORMAT_MESSAGE_IGNORE_INSERTS  = 0x00000200;
+	    const uint FORMAT_MESSAGE_FROM_SYSTEM    = 0x00001000;
+	
+	    IntPtr lpMsgBuf = IntPtr.Zero;
+	
+	    uint dwChars = FormatMessage(
+	        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+	        IntPtr.Zero,
+	        (uint)hr,
+	        0, // Default language
+	        ref lpMsgBuf,
+	        0,
+	        IntPtr.Zero);
 		
+	    if (dwChars > 0)
+		{
+		    message = Marshal.PtrToStringAnsi(lpMsgBuf).Trim();
+		
+		    // Free the buffer.
+		    LocalFree(lpMsgBuf);
+		}
+		else
+	    {
+	        // Handle the error.
+	        message = "hr=0x" + uhr.ToString("X");
+	    }
+	
 		return message;
 	}
 	
@@ -464,6 +457,25 @@ public class KinectWrapper
 				bodyIndexImage = (BodyIndexBuffer)Marshal.PtrToStructure(imagePtr, typeof(BodyIndexBuffer));
 				bNewFrame = true;
 			}
+		}
+		
+		return bNewFrame;
+	}
+	
+	// Polls for new color histogram frame data
+	public static bool PollUserHistogramFrame(ref UserHistogramBuffer userHistImage, bool bUseColorData)
+	{
+		bool bNewFrame = false;
+
+		IntPtr imagePtr = IntPtr.Zero;
+		Int64 liFrameTime = 0;
+	
+		int hr = GetUserHistogramFrameData(ref imagePtr, ref liFrameTime, bUseColorData);
+		
+		if(hr == 0)
+		{
+			userHistImage = (UserHistogramBuffer)Marshal.PtrToStructure(imagePtr, typeof(UserHistogramBuffer));
+			bNewFrame = true;
 		}
 		
 		return bNewFrame;

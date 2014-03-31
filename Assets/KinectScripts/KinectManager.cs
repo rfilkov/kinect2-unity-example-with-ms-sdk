@@ -56,6 +56,7 @@ public class KinectManager : MonoBehaviour
 	// Depth and user maps
 	private KinectWrapper.DepthBuffer depthImage;
 	private KinectWrapper.BodyIndexBuffer bodyIndexImage;
+	private KinectWrapper.UserHistogramBuffer userHistogramImage;
 	private Texture2D usersLblTex;
 	private Rect usersMapRect;
 	private Color32[] usersMapColors;
@@ -310,7 +311,7 @@ public class KinectManager : MonoBehaviour
 		}
 		catch(Exception e)
 		{
-			string message = e.Message + " - " + KinectWrapper.GetNuiErrorString(hr);
+			string message = e.Message + " - " + KinectWrapper.GetSystemErrorMessage(hr);
 			Debug.LogError(message);
 			Debug.LogException(e);
 			
@@ -470,92 +471,12 @@ public class KinectManager : MonoBehaviour
 	
     void UpdateUserMap()
     {
-        int numOfPoints = 0;
-		Array.Clear(usersHistogramMap, 0, usersHistogramMap.Length);
-
-        // Calculate cumulative histogram for depth
-        for (int i = 0; i < usersMapSize; i++)
-        {
-            // Only calculate for depth that contains users
-            if (bodyIndexImage.pixels[i] != 255)
-            {
-                usersHistogramMap[depthImage.pixels[i]]++;
-                numOfPoints++;
-            }
-        }
-		
-        if (numOfPoints > 0)
-        {
-            for (int i = 1; i < usersHistogramMap.Length; i++)
-	        {   
-		        usersHistogramMap[i] += usersHistogramMap[i-1];
-	        }
-			
-            for (int i = 0; i < usersHistogramMap.Length; i++)
-	        {
-                usersHistogramMap[i] = 1.0f - (usersHistogramMap[i] / numOfPoints);
-	        }
-        }
-		
-        // Create the actual users texture based on label map and depth histogram
-		Color32 clrClear = Color.clear;
-		
-        for (int i = 0; i < usersMapSize; i++)
-        {
-	        // Flip the texture as we convert label map to color array
-            int flipIndex = i; // usersMapSize - i - 1;
-			
-			byte userMap = bodyIndexImage.pixels[i];
-			ushort userDepth = depthImage.pixels[i];
-			
-			ushort nowUserPixel = userMap != 255 ? (ushort)((userMap << 13) | userDepth) : userDepth;
-			ushort wasUserPixel = usersPrevState[flipIndex];
-			
-			// draw only the changed pixels
-			if(nowUserPixel != wasUserPixel)
-			{
-				usersPrevState[flipIndex] = nowUserPixel;
-				
-	            if (userMap == 255)
-	            {
-	                usersMapColors[flipIndex] = clrClear;
-	            }
-	            else
-	            {
-//					if(colorImage != null)
-//					{
-//	
-//					}
-//					else
-					{
-		                // Create a blending color based on the depth histogram
-						float histDepth = usersHistogramMap[userDepth];
-		                Color c = new Color(histDepth, histDepth, histDepth, 0.9f);
-		                
-						switch(userMap % 4)
-		                {
-		                    case 0:
-		                        usersMapColors[flipIndex] = Color.red * c;
-		                        break;
-		                    case 1:
-		                        usersMapColors[flipIndex] = Color.green * c;
-		                        break;
-		                    case 2:
-		                        usersMapColors[flipIndex] = Color.blue * c;
-		                        break;
-		                    case 3:
-		                        usersMapColors[flipIndex] = Color.magenta * c;
-		                        break;
-		                }
-					}
-	            }
-				
-			}
-        }
-		
-		// Draw it!
-        usersLblTex.SetPixels32(usersMapColors);
-        usersLblTex.Apply();
+		if(KinectWrapper.PollUserHistogramFrame(ref userHistogramImage, ComputeColorMap))
+		{
+			// Draw it!
+	        usersLblTex.SetPixels32(userHistogramImage.pixels);
+	        usersLblTex.Apply();
+		}
     }
 	
 	// Update the color image
