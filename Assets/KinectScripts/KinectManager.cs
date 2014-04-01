@@ -12,19 +12,19 @@ public class KinectManager : MonoBehaviour
 	public float sensorHeight = 1.0f;
 
 	// Public Bool to determine whether to receive and compute the user map
-	public bool ComputeUserMap = false;
+	public bool computeUserMap = false;
 	
 	// Public Bool to determine whether to receive and compute the color map
-	public bool ComputeColorMap = false;
+	public bool computeColorMap = false;
 	
 	// Public Bool to determine whether to display user map on the GUI
-	public bool DisplayUserMap = false;
+	public bool displayUserMap = false;
 	
 	// Public Bool to determine whether to display color map on the GUI
-	public bool DisplayColorMap = false;
+	public bool displayColorMap = false;
 	
 	// Public Bool to determine whether to display the skeleton lines on user map
-	public bool DisplaySkeletonLines = false;
+	public bool displaySkeletonLines = false;
 	
 	// Public Floats to specify the width and height of the depth and color maps as % of the camera width and height
 	// if percents are zero, they are calculated based on actual Kinect image´s width and height
@@ -62,7 +62,7 @@ public class KinectManager : MonoBehaviour
 //	private Color32[] usersMapColors;
 //	private ushort[] usersPrevState;
 //	private float[] usersHistogramMap;
-	private int usersMapSize;
+//	private int usersMapSize;
 	private int minDepth;
 	private int maxDepth;
 	
@@ -76,8 +76,8 @@ public class KinectManager : MonoBehaviour
 	private Int64 lastFrameTime = 0;
 	
 	// List of all users
-	private List<Int64> allUserIds;
-	private Dictionary<Int64, int> userIdIndex;
+	private List<Int64> alUserIds;
+	private Dictionary<Int64, int> dictUserIdToIndex;
 	
 	// First user ID
 	private Int64 liFirstUserId = 0;
@@ -122,27 +122,27 @@ public class KinectManager : MonoBehaviour
 	// returns true if at least one user is currently detected by the sensor
 	public bool IsUserDetected()
 	{
-		return kinectInitialized && (allUserIds.Count > 0);
+		return kinectInitialized && (alUserIds.Count > 0);
 	}
 	
 	// returns true if the User is calibrated and ready to use
 	public bool IsUserCalibrated(Int64 userId)
 	{
-		return userIdIndex.ContainsKey(userId);
+		return dictUserIdToIndex.ContainsKey(userId);
 	}
 	
 	// returns the number of currently detected users
 	public int GetUsersCount()
 	{
-		return allUserIds.Count;
+		return alUserIds.Count;
 	}
 	
 	// returns the UserID by the given index
 	public Int64 GetUserByIndex(int i)
 	{
-		if(i >= 0 && i < allUserIds.Count)
+		if(i >= 0 && i < alUserIds.Count)
 		{
-			return allUserIds[i];
+			return alUserIds[i];
 		}
 		
 		return 0;
@@ -157,9 +157,9 @@ public class KinectManager : MonoBehaviour
 	// returns the User position, relative to the Kinect-sensor, in meters
 	public Vector3 GetUserPosition(Int64 userId)
 	{
-		if(userIdIndex.ContainsKey(userId))
+		if(dictUserIdToIndex.ContainsKey(userId))
 		{
-			int index = userIdIndex[userId];
+			int index = dictUserIdToIndex[userId];
 			
 			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
 				bodyFrame.bodyData[index].bIsTracked != 0)
@@ -174,9 +174,9 @@ public class KinectManager : MonoBehaviour
 	// returns the User rotation, relative to the Kinect-sensor
 	public Quaternion GetUserOrientation(Int64 userId, bool flip)
 	{
-		if(userIdIndex.ContainsKey(userId))
+		if(dictUserIdToIndex.ContainsKey(userId))
 		{
-			int index = userIdIndex[userId];
+			int index = dictUserIdToIndex[userId];
 			
 			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
 				bodyFrame.bodyData[index].bIsTracked != 0)
@@ -191,9 +191,9 @@ public class KinectManager : MonoBehaviour
 	// returns true if the given joint of the specified user is being tracked
 	public bool IsJointTracked(Int64 userId, int joint)
 	{
-		if(userIdIndex.ContainsKey(userId))
+		if(dictUserIdToIndex.ContainsKey(userId))
 		{
-			int index = userIdIndex[userId];
+			int index = dictUserIdToIndex[userId];
 			
 			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
 				bodyFrame.bodyData[index].bIsTracked != 0)
@@ -214,9 +214,9 @@ public class KinectManager : MonoBehaviour
 	// returns the joint position of the specified user, relative to the Kinect-sensor, in meters
 	public Vector3 GetJointPosition(Int64 userId, int joint)
 	{
-		if(userIdIndex.ContainsKey(userId))
+		if(dictUserIdToIndex.ContainsKey(userId))
 		{
-			int index = userIdIndex[userId];
+			int index = dictUserIdToIndex[userId];
 			
 			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
 				bodyFrame.bodyData[index].bIsTracked != 0)
@@ -235,9 +235,9 @@ public class KinectManager : MonoBehaviour
 	// returns the joint direction of the specified user, relative to the parent joint
 	public Vector3 GetJointDirection(Int64 userId, int joint)
 	{
-		if(userIdIndex.ContainsKey(userId))
+		if(dictUserIdToIndex.ContainsKey(userId))
 		{
-			int index = userIdIndex[userId];
+			int index = dictUserIdToIndex[userId];
 			
 			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
 				bodyFrame.bodyData[index].bIsTracked != 0)
@@ -256,9 +256,9 @@ public class KinectManager : MonoBehaviour
 	// returns the joint rotation of the specified user, relative to the Kinect-sensor
 	public Quaternion GetJointOrientation(Int64 userId, int joint, bool flip)
 	{
-		if(userIdIndex.ContainsKey(userId))
+		if(dictUserIdToIndex.ContainsKey(userId))
 		{
-			int index = userIdIndex[userId];
+			int index = dictUserIdToIndex[userId];
 			
 			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
 				bodyFrame.bodyData[index].bIsTracked != 0)
@@ -276,6 +276,27 @@ public class KinectManager : MonoBehaviour
 	
 	
 	// KinectManager's Internal Methods
+	
+	void Awake()
+	{
+		try
+		{
+			if(KinectWrapper.EnsureKinectWrapperPresence())
+			{
+				// reload the same level
+				Application.LoadLevel(Application.loadedLevel);
+			}
+		} 
+		catch (Exception ex) 
+		{
+			Debug.LogError(ex.ToString());
+			
+			if(calibrationText != null)
+			{
+				calibrationText.guiText.text = ex.Message;
+			}
+		}
+	}
 
 	void Start() 
 	{
@@ -295,9 +316,9 @@ public class KinectManager : MonoBehaviour
 			
 			// try to initialize the default Kinect2 sensor
 			KinectWrapper.FrameSource dwFlags = KinectWrapper.FrameSource.TypeBody;
-			if(ComputeColorMap)
+			if(computeColorMap)
 				dwFlags |= KinectWrapper.FrameSource.TypeColor;
-			if(ComputeUserMap)
+			if(computeUserMap)
 				dwFlags |= KinectWrapper.FrameSource.TypeDepth | KinectWrapper.FrameSource.TypeBodyIndex | KinectWrapper.FrameSource.TypeInfrared;
 			
 			hr = KinectWrapper.InitDefaultKinectSensor(dwFlags, KinectWrapper.Constants.ColorImageWidth, KinectWrapper.Constants.ColorImageHeight);
@@ -309,11 +330,12 @@ public class KinectManager : MonoBehaviour
 			// transform matrix - kinect to world
 			kinectToWorld.SetTRS(new Vector3(0.0f, sensorHeight, 0.0f), Quaternion.identity, Vector3.one);
 		}
-		catch(Exception e)
+		catch(Exception ex)
 		{
-			string message = e.Message + " - " + KinectWrapper.GetSystemErrorMessage(hr);
+			string message = ex.Message + " - " + KinectWrapper.GetSystemErrorMessage(hr);
 			Debug.LogError(message);
-			Debug.LogException(e);
+			
+			Debug.LogException(ex);
 			
 			if(calibrationText != null)
 			{
@@ -335,14 +357,14 @@ public class KinectManager : MonoBehaviour
 		if(MapsPercentHeight == 0f)
 			MapsPercentHeight = (KinectWrapper.Constants.DepthImageHeight / 2) / cameraRect.height;
 		
-		if(ComputeUserMap)
+		if(computeUserMap)
 		{
 			// init user-depth structures
 			//depthImage = new KinectWrapper.DepthBuffer(true);
 			//bodyIndexImage = new KinectWrapper.BodyIndexBuffer(true);
 			
 	        // Initialize depth & label map related stuff
-	        usersMapSize = KinectWrapper.Constants.DepthImageWidth * KinectWrapper.Constants.DepthImageHeight;
+//	        usersMapSize = KinectWrapper.Constants.DepthImageWidth * KinectWrapper.Constants.DepthImageHeight;
 	        usersLblTex = new Texture2D(KinectWrapper.Constants.DepthImageWidth, KinectWrapper.Constants.DepthImageHeight);
 //	        usersMapColors = new Color32[usersMapSize];
 //			usersPrevState = new ushort[usersMapSize];
@@ -350,7 +372,7 @@ public class KinectManager : MonoBehaviour
 //	        usersHistogramMap = new float[8192];
 		}
 		
-		if(ComputeColorMap)
+		if(computeColorMap)
 		{
 			// init color image structures
 			//colorImage = new KinectWrapper.ColorBuffer(true);
@@ -359,15 +381,15 @@ public class KinectManager : MonoBehaviour
 	        usersClrTex = new Texture2D(KinectWrapper.Constants.ColorImageWidth, KinectWrapper.Constants.ColorImageHeight);
 	        usersClrRect = new Rect(cameraRect.width - cameraRect.width * MapsPercentWidth, cameraRect.height, cameraRect.width * MapsPercentWidth, -cameraRect.height * MapsPercentHeight);
 			
-			if(ComputeUserMap)
+			if(computeUserMap)
 			{
 				usersMapRect.x -= cameraRect.width * MapsPercentWidth; //usersClrTex.width / 2;
 			}
 		}
 		
         // Initialize user list to contain all users.
-        allUserIds = new List<Int64>();
-        userIdIndex = new Dictionary<Int64, int>();
+        alUserIds = new List<Int64>();
+        dictUserIdToIndex = new Dictionary<Int64, int>();
 	
 		kinectInitialized = true;
 		instance = this;
@@ -428,12 +450,12 @@ public class KinectManager : MonoBehaviour
     {
 		if(kinectInitialized)
 		{
-	        if(ComputeUserMap && DisplayUserMap)
+	        if(computeUserMap && displayUserMap)
 	        {
 	            GUI.DrawTexture(usersMapRect, usersLblTex);
 	        }
 
-			if(ComputeColorMap && DisplayColorMap)
+			if(computeColorMap && displayColorMap)
 			{
 				GUI.DrawTexture(usersClrRect, usersClrTex);
 			}
@@ -450,7 +472,7 @@ public class KinectManager : MonoBehaviour
 				ProcessBodyFrameData();
 			}
 			
-			if(ComputeColorMap)
+			if(computeColorMap)
 			{
 				if(KinectWrapper.PollColorFrame(ref colorImage))
 				{
@@ -458,7 +480,7 @@ public class KinectManager : MonoBehaviour
 				}
 			}
 			
-			if(ComputeUserMap)
+			if(computeUserMap)
 			{
 				if(KinectWrapper.PollDepthFrame(ref depthImage, ref bodyIndexImage, ref minDepth, ref maxDepth))
 				{
@@ -472,18 +494,18 @@ public class KinectManager : MonoBehaviour
 	// Update the user histogram
     void UpdateUserMap()
     {
-		if(KinectWrapper.PollUserHistogramFrame(ref userHistogramImage, ComputeColorMap))
+		if(KinectWrapper.PollUserHistogramFrame(ref userHistogramImage, computeColorMap))
 		{
 			// draw user histogram
 	        usersLblTex.SetPixels32(userHistogramImage.pixels);
 			
 			// draw skeleton lines
-			if(DisplaySkeletonLines)
+			if(displaySkeletonLines)
 			{
-				for(int i = 0; i < allUserIds.Count; i++)
+				for(int i = 0; i < alUserIds.Count; i++)
 				{
-					Int64 liUserId = allUserIds[i];
-					int index = userIdIndex[liUserId];
+					Int64 liUserId = alUserIds[i];
+					int index = dictUserIdToIndex[liUserId];
 					
 					if(index >= 0 && index < KinectWrapper.Constants.BodyCount)
 					{
@@ -507,14 +529,14 @@ public class KinectManager : MonoBehaviour
 	private void ProcessBodyFrameData()
 	{
 		List<Int64> lostUsers = new List<Int64>();
-		lostUsers.AddRange(allUserIds);
+		lostUsers.AddRange(alUserIds);
 		
 		for(int i = 0; i < KinectWrapper.Constants.BodyCount; i++)
 		{
 			KinectWrapper.BodyData bodyData = bodyFrame.bodyData[i];
 			Int64 userId = bodyData.liTrackingID;
 			
-			if(bodyData.bIsTracked != 0)
+			if(bodyData.bIsTracked != 0 && Mathf.Abs(kinectToWorld.MultiplyPoint3x4(bodyData.position).z) >= minUserDistance)
 			{
 				// get the body position
 				Vector3 bodyPos = kinectToWorld.MultiplyPoint3x4(bodyData.position);
@@ -546,49 +568,46 @@ public class KinectManager : MonoBehaviour
 					
 					if(bClosestUser)
 					{
+						// calibrate the first or closest user
 						CalibrateUser(userId, iClosestUserIndex);
 					}
 				}
+				
+				// calibrate current user
+				CalibrateUser(userId, i);
 
-				//if(Mathf.Abs(bodyPos.z) >= Mathf.Abs(minUserDistance))
+				// convert Kinect positions to world positions
+				bodyFrame.bodyData[i].position = bodyPos;
+				
+				for (int j = 0; j < KinectWrapper.Constants.JointCount; j++)
 				{
-					// convert Kinect positions to world positions
-					bodyFrame.bodyData[i].position = bodyPos;
-					
-					for (int j = 0; j < KinectWrapper.Constants.JointCount; j++)
+					bodyData.joint[j].position = kinectToWorld.MultiplyPoint3x4(bodyData.joint[j].position);
+				
+					if((bodyData.liTrackingID == liFirstUserId) && (j == (int)KinectWrapper.JointType.HipCenter) &&
+						bodyData.joint[j].trackingState == KinectWrapper.TrackingState.Tracked)
 					{
-						bodyData.joint[j].position = kinectToWorld.MultiplyPoint3x4(bodyData.joint[j].position);
-					
-						if((bodyData.liTrackingID == liFirstUserId) && (j == (int)KinectWrapper.JointType.HipCenter))
+						string debugText = String.Format("Body Pos: {0}", bodyData.joint[j].position);
+						
+						//if(bodyData.rightHandState != KinectWrapper.HandState.Unknown)
 						{
-							string debugText = String.Format("Body Pos: {0}", bodyData.joint[j].position);
-							
-							//if(bodyData.rightHandState != KinectWrapper.HandState.Unknown)
-							{
-								debugText += "\n\nRight Hand: " + 
-									(bodyData.rightHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.rightHandState != KinectWrapper.HandState.Unknown && bodyData.rightHandState != KinectWrapper.HandState.NotTracked ? 
-										bodyData.rightHandState.ToString() : "");
-							}
-							
-							//if(bodyData.leftHandState != KinectWrapper.HandState.Unknown)
-							{
-								debugText += "\nLeft Hand: " + 
-									(bodyData.leftHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.leftHandState != KinectWrapper.HandState.Unknown && bodyData.leftHandState != KinectWrapper.HandState.NotTracked ? 
-										bodyData.leftHandState.ToString() : "");
-							}
-							
-							if(calibrationText && bodyData.joint[j].trackingState == KinectWrapper.TrackingState.Tracked)
-							{
-								calibrationText.guiText.text = debugText;
-							}
+							debugText += "\n\nRight Hand: " + 
+								(bodyData.rightHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.rightHandState != KinectWrapper.HandState.Unknown && bodyData.rightHandState != KinectWrapper.HandState.NotTracked ? 
+									bodyData.rightHandState.ToString() : "");
+						}
+						
+						//if(bodyData.leftHandState != KinectWrapper.HandState.Unknown)
+						{
+							debugText += "\nLeft Hand: " + 
+								(bodyData.leftHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.leftHandState != KinectWrapper.HandState.Unknown && bodyData.leftHandState != KinectWrapper.HandState.NotTracked ? 
+									bodyData.leftHandState.ToString() : "");
+						}
+						
+						if(calibrationText)
+						{
+							calibrationText.guiText.text = debugText;
 						}
 					}
 				}
-//				else
-//				{
-//					// consider body as not tracked
-//					bodyFrame.bodyData[i].bIsTracked = 0;
-//				}
 				
 				lostUsers.Remove(userId);
 			}
@@ -609,10 +628,10 @@ public class KinectManager : MonoBehaviour
 	// Adds UserId to the list of users
     void CalibrateUser(Int64 userId, int userIndex)
     {
-		if(!allUserIds.Contains(userId))
+		if(!alUserIds.Contains(userId))
 		{
-			allUserIds.Add(userId);
-			userIdIndex[userId] = userIndex;
+			alUserIds.Add(userId);
+			dictUserIdToIndex[userId] = userIndex;
 			
 			if(liFirstUserId == 0)
 			{
@@ -622,7 +641,7 @@ public class KinectManager : MonoBehaviour
 		
 		if(liFirstUserId != 0)
 		{
-			if(calibrationText != null)
+			if(calibrationText != null && calibrationText.guiText.text != "")
 			{
 				calibrationText.guiText.text = "";
 			}
@@ -633,14 +652,14 @@ public class KinectManager : MonoBehaviour
 	void RemoveUser(Int64 userId)
 	{
         // remove from global users list
-        allUserIds.Remove(userId);
-		userIdIndex.Remove(userId);
+        alUserIds.Remove(userId);
+		dictUserIdToIndex.Remove(userId);
 		
 		if(liFirstUserId == userId)
 		{
-			if(allUserIds.Count > 0)
+			if(alUserIds.Count > 0)
 			{
-				liFirstUserId = allUserIds[0];
+				liFirstUserId = alUserIds[0];
 			}
 			else
 			{
@@ -650,8 +669,9 @@ public class KinectManager : MonoBehaviour
 		
 		if(liFirstUserId == 0)
 		{
-			Debug.Log("Waiting for users.");
-			if(calibrationText != null)
+			//Debug.Log("Waiting for users.");
+			
+			if(calibrationText != null && calibrationText.guiText.text == "")
 			{
 				calibrationText.guiText.text = "WAITING FOR USERS";
 			}

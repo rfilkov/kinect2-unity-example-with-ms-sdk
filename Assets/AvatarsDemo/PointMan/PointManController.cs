@@ -82,6 +82,16 @@ public class PointManController : MonoBehaviour
 			
 			if(transform.rotation != initialRotation)
 				transform.rotation = initialRotation;
+
+			for(int i = 0; i < bones.Length; i++) 
+			{
+				bones[i].gameObject.SetActive(true);
+
+				bones[i].transform.localPosition = Vector3.zero;
+				bones[i].transform.localRotation = Quaternion.identity;
+				
+				lines[i].gameObject.SetActive(false);
+			}
 			
 			return;
 		}

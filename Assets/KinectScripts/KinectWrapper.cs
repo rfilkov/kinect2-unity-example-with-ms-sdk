@@ -3,6 +3,7 @@ using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System;
+using System.IO;
 
 
 public class KinectWrapper
@@ -482,14 +483,36 @@ public class KinectWrapper
 			if(hr == 0)
 			{
 				depthImage = (DepthBuffer)Marshal.PtrToStructure(imagePtr, typeof(DepthBuffer));
-				bNewFrame = true;
-			}
 
-			hr = GetNewBodyIndexFrameData(ref imagePtr, ref liFrameTime);
+				hr = GetNewBodyIndexFrameData(ref imagePtr, ref liFrameTime);
+				
+				if(hr == 0)
+				{
+					bodyIndexImage = (BodyIndexBuffer)Marshal.PtrToStructure(imagePtr, typeof(BodyIndexBuffer));
+					bNewFrame = true;
+				}
+			}
+		}
+		
+		return bNewFrame;
+	}
+	
+	// Polls for new infrared frame data
+	public static bool PollInfraredFrame(ref DepthBuffer infraredImage)
+	{
+		bool bNewFrame = false;
+
+		IntPtr imagePtr = IntPtr.Zero;
+		Int64 liFrameTime = 0;
+	
+		int hr = PollImageFrameData(FrameSource.TypeInfrared);
+		if (hr == 0)
+		{
+			hr = GetNewInfraredFrameData(ref imagePtr, ref liFrameTime);
 			
 			if(hr == 0)
 			{
-				bodyIndexImage = (BodyIndexBuffer)Marshal.PtrToStructure(imagePtr, typeof(BodyIndexBuffer));
+				infraredImage = (DepthBuffer)Marshal.PtrToStructure(imagePtr, typeof(DepthBuffer));
 				bNewFrame = true;
 			}
 		}
@@ -528,6 +551,62 @@ public class KinectWrapper
 		}
 		
 		return Vector2.zero;
+	}
+	
+	
+	// Copies the needed resources into the project directory
+	public static bool EnsureKinectWrapperPresence()
+	{
+		bool bOneCopied = false, bAllCopied = true;
+		
+		CopyResourceFile("KinectServer/Kinect2UnityServer.exe", "Kinect2UnityServer.exe", ref bOneCopied, ref bAllCopied);
+		CopyResourceFile("KinectServer/msvcp110d.dll", "msvcp110d.dll.x64", ref bOneCopied, ref bAllCopied);
+		CopyResourceFile("KinectServer/msvcr110d.dll", "msvcr110d.dll.x64", ref bOneCopied, ref bAllCopied);
+		
+		CopyResourceFile("Kinect2UnityClient.dll", "Kinect2UnityClient.dll", ref bOneCopied, ref bAllCopied);
+		CopyResourceFile("msvcp110d.dll", "msvcp110d.dll.i386", ref bOneCopied, ref bAllCopied);
+		CopyResourceFile("msvcr110d.dll", "msvcr110d.dll.i386", ref bOneCopied, ref bAllCopied);
+		
+		return bOneCopied && bAllCopied;
+	}
+	
+	// Copy a resource file to the target
+	private static bool CopyResourceFile(string targetFilePath, string resFileName, ref bool bOneCopied, ref bool bAllCopied)
+	{
+		TextAsset textRes = Resources.Load(resFileName, typeof(TextAsset)) as TextAsset;
+		if(textRes == null)
+		{
+			bOneCopied = false;
+			bAllCopied = false;
+			
+			return false;
+		}
+		
+		FileInfo targetFile = new FileInfo(targetFilePath);
+		if(!targetFile.Directory.Exists)
+		{
+			targetFile.Directory.Create();
+		}
+		
+		if(!targetFile.Exists || targetFile.Length !=  textRes.bytes.Length)
+		{
+			if(textRes != null)
+			{
+				using (FileStream fileStream = new FileStream (targetFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+				{
+					fileStream.Write(textRes.bytes, 0, textRes.bytes.Length);
+				}
+				
+				bool bFileCopied = File.Exists(targetFilePath);
+				
+				bOneCopied = bOneCopied || bFileCopied;
+				bAllCopied = bAllCopied && bFileCopied;
+				
+				return bFileCopied;
+			}
+		}
+		
+		return false;
 	}
 	
 }
