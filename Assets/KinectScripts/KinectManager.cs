@@ -28,8 +28,8 @@ public class KinectManager : MonoBehaviour
 	
 	// Public Floats to specify the width and height of the depth and color maps as % of the camera width and height
 	// if percents are zero, they are calculated based on actual Kinect image´s width and height
-	public float MapsPercentWidth = 0f;
-	public float MapsPercentHeight = 0f;
+	private float MapsPercentWidth = 0f;
+	private float MapsPercentHeight = 0f;
 	
 	// Minimum user distance in order to process skeleton data
 	public float minUserDistance = 1.0f;
@@ -59,9 +59,9 @@ public class KinectManager : MonoBehaviour
 	private KinectWrapper.UserHistogramBuffer userHistogramImage;
 	private Texture2D usersLblTex;
 	private Rect usersMapRect;
-	private Color32[] usersMapColors;
-	private ushort[] usersPrevState;
-	private float[] usersHistogramMap;
+//	private Color32[] usersMapColors;
+//	private ushort[] usersPrevState;
+//	private float[] usersHistogramMap;
 	private int usersMapSize;
 	private int minDepth;
 	private int maxDepth;
@@ -344,10 +344,10 @@ public class KinectManager : MonoBehaviour
 	        // Initialize depth & label map related stuff
 	        usersMapSize = KinectWrapper.Constants.DepthImageWidth * KinectWrapper.Constants.DepthImageHeight;
 	        usersLblTex = new Texture2D(KinectWrapper.Constants.DepthImageWidth, KinectWrapper.Constants.DepthImageHeight);
-	        usersMapColors = new Color32[usersMapSize];
-			usersPrevState = new ushort[usersMapSize];
+//	        usersMapColors = new Color32[usersMapSize];
+//			usersPrevState = new ushort[usersMapSize];
 	        usersMapRect = new Rect(cameraRect.width - cameraRect.width * MapsPercentWidth, cameraRect.height, cameraRect.width * MapsPercentWidth, -cameraRect.height * MapsPercentHeight);
-	        usersHistogramMap = new float[8192];
+//	        usersHistogramMap = new float[8192];
 		}
 		
 		if(ComputeColorMap)
@@ -444,12 +444,10 @@ public class KinectManager : MonoBehaviour
 	{
 		if(kinectInitialized)
 		{
-			if(ComputeUserMap)
+			if(KinectWrapper.PollSkeleton(ref bodyFrame, lastFrameTime))
 			{
-				if(KinectWrapper.PollDepthFrame(ref depthImage, ref bodyIndexImage, ref minDepth, ref maxDepth))
-				{
-		        	UpdateUserMap();
-				}
+				lastFrameTime = bodyFrame.liRelativeTime;
+				ProcessBodyFrameData();
 			}
 			
 			if(ComputeColorMap)
@@ -460,22 +458,41 @@ public class KinectManager : MonoBehaviour
 				}
 			}
 			
-			if(KinectWrapper.PollSkeleton(ref bodyFrame, lastFrameTime))
+			if(ComputeUserMap)
 			{
-				lastFrameTime = bodyFrame.liRelativeTime;
-				ProcessBodyFrameData();
+				if(KinectWrapper.PollDepthFrame(ref depthImage, ref bodyIndexImage, ref minDepth, ref maxDepth))
+				{
+		        	UpdateUserMap();
+				}
 			}
 			
 		}
 	}
 	
+	// Update the user histogram
     void UpdateUserMap()
     {
 		if(KinectWrapper.PollUserHistogramFrame(ref userHistogramImage, ComputeColorMap))
 		{
-			// Draw it!
+			// draw user histogram
 	        usersLblTex.SetPixels32(userHistogramImage.pixels);
-	        usersLblTex.Apply();
+			
+			// draw skeleton lines
+			if(DisplaySkeletonLines)
+			{
+				for(int i = 0; i < allUserIds.Count; i++)
+				{
+					Int64 liUserId = allUserIds[i];
+					int index = userIdIndex[liUserId];
+					
+					if(index >= 0 && index < KinectWrapper.Constants.BodyCount)
+					{
+						DrawSkeleton(usersLblTex, ref bodyFrame.bodyData[index]);
+					}
+				}
+			}
+
+			usersLblTex.Apply();
 		}
     }
 	
@@ -545,6 +562,20 @@ public class KinectManager : MonoBehaviour
 						if((bodyData.liTrackingID == liFirstUserId) && (j == (int)KinectWrapper.JointType.HipCenter))
 						{
 							string debugText = String.Format("Body Pos: {0}", bodyData.joint[j].position);
+							
+							//if(bodyData.rightHandState != KinectWrapper.HandState.Unknown)
+							{
+								debugText += "\n\nRight Hand: " + 
+									(bodyData.rightHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.rightHandState != KinectWrapper.HandState.Unknown && bodyData.rightHandState != KinectWrapper.HandState.NotTracked ? 
+										bodyData.rightHandState.ToString() : "");
+							}
+							
+							//if(bodyData.leftHandState != KinectWrapper.HandState.Unknown)
+							{
+								debugText += "\nLeft Hand: " + 
+									(bodyData.leftHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.leftHandState != KinectWrapper.HandState.Unknown && bodyData.leftHandState != KinectWrapper.HandState.NotTracked ? 
+										bodyData.leftHandState.ToString() : "");
+							}
 							
 							if(calibrationText && bodyData.joint[j].trackingState == KinectWrapper.TrackingState.Tracked)
 							{
@@ -625,6 +656,109 @@ public class KinectManager : MonoBehaviour
 				calibrationText.guiText.text = "WAITING FOR USERS";
 			}
 		}
+	}
+	
+	// draws the skeleton in the given texture
+	private void DrawSkeleton(Texture2D aTexture, ref KinectWrapper.BodyData bodyData)
+	{
+		int jointsCount = KinectWrapper.Constants.JointCount;
+		
+		for(int i = 0; i < jointsCount; i++)
+		{
+			int parent = (int)KinectWrapper.GetParentJoint((KinectWrapper.JointType)i);
+			
+			if(bodyData.joint[i].trackingState == KinectWrapper.TrackingState.Tracked && bodyData.joint[parent].trackingState == KinectWrapper.TrackingState.Tracked)
+			{
+				Vector2 posParent = KinectWrapper.GetKinectPointDepthCoords(bodyData.joint[parent].kinectPos);
+				Vector2 posJoint = KinectWrapper.GetKinectPointDepthCoords(bodyData.joint[i].kinectPos);
+				
+//				posParent.y = KinectWrapper.Constants.ImageHeight - posParent.y - 1;
+//				posJoint.y = KinectWrapper.Constants.ImageHeight - posJoint.y - 1;
+//				posParent.x = KinectWrapper.Constants.ImageWidth - posParent.x - 1;
+//				posJoint.x = KinectWrapper.Constants.ImageWidth - posJoint.x - 1;
+				
+				//Color lineColor = playerJointsTracked[i] && playerJointsTracked[parent] ? Color.red : Color.yellow;
+				DrawLine(aTexture, (int)posParent.x, (int)posParent.y, (int)posJoint.x, (int)posJoint.y, Color.yellow);
+			}
+		}
+		
+		//aTexture.Apply();
+	}
+	
+	// draws a line in a texture
+	private void DrawLine(Texture2D a_Texture, int x1, int y1, int x2, int y2, Color a_Color)
+	{
+		int width = KinectWrapper.Constants.DepthImageWidth;
+		int height = KinectWrapper.Constants.DepthImageHeight;
+		
+		int dy = y2 - y1;
+		int dx = x2 - x1;
+	 
+		int stepy = 1;
+		if (dy < 0) 
+		{
+			dy = -dy; 
+			stepy = -1;
+		}
+		
+		int stepx = 1;
+		if (dx < 0) 
+		{
+			dx = -dx; 
+			stepx = -1;
+		}
+		
+		dy <<= 1;
+		dx <<= 1;
+	 
+		if(x1 >= 0 && x1 < width && y1 >= 0 && y1 < height)
+			for(int x = -1; x <= 1; x++)
+				for(int y = -1; y <= 1; y++)
+					a_Texture.SetPixel(x1 + x, y1 + y, a_Color);
+		
+		if (dx > dy) 
+		{
+			int fraction = dy - (dx >> 1);
+			
+			while (x1 != x2) 
+			{
+				if (fraction >= 0) 
+				{
+					y1 += stepy;
+					fraction -= dx;
+				}
+				
+				x1 += stepx;
+				fraction += dy;
+				
+				if(x1 >= 0 && x1 < width && y1 >= 0 && y1 < height)
+					for(int x = -1; x <= 1; x++)
+						for(int y = -1; y <= 1; y++)
+							a_Texture.SetPixel(x1 + x, y1 + y, a_Color);
+			}
+		}
+		else 
+		{
+			int fraction = dx - (dy >> 1);
+			
+			while (y1 != y2) 
+			{
+				if (fraction >= 0) 
+				{
+					x1 += stepx;
+					fraction -= dy;
+				}
+				
+				y1 += stepy;
+				fraction += dx;
+				
+				if(x1 >= 0 && x1 < width && y1 >= 0 && y1 < height)
+					for(int x = -1; x <= 1; x++)
+						for(int y = -1; y <= 1; y++)
+							a_Texture.SetPixel(x1 + x, y1 + y, a_Color);
+			}
+		}
+		
 	}
 	
 }

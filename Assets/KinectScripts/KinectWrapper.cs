@@ -121,6 +121,7 @@ public class KinectWrapper
     {
     	public JointType jointType;
     	public TrackingState trackingState;
+    	public Vector3 kinectPos;
     	public Vector3 position;
 		public Vector3 direction;
 		public Quaternion orientation;
@@ -241,6 +242,22 @@ public class KinectWrapper
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
 	public static extern int GetBodyFrameData(ref BodyFrame pBodyFrame, bool bGetOrientations, bool bGetHandStates);
 	
+//	// Returns the latest color frame data, if available
+//	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+//	public static extern int GetColorFrameData(int iWidth, int iHeight, uint iBufferLength, ref ColorBuffer pColorFrame, ref Int64 liRelativeTime);
+//	
+//	// Returns the latest depth frame data, if available
+//	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+//	public static extern int GetDepthFrameData(ref DepthBuffer pDepthFrame, ref int iMinDepthDistance, ref int iMaxDepthDistance, ref Int64 liRelativeTime);
+//	
+//	// Returns the latest infrared frame data, if available
+//	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+//	public static extern int GetInfraredFrameData(ref DepthBuffer pInfraredFrame, ref Int64 liRelativeTime);
+//	
+//	// Returns the latest body-index frame data, if available
+//	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+//	public static extern int GetBodyIndexFrameData(ref BodyIndexBuffer pBodyIndexFrame, ref Int64 liRelativeTime);
+	
 
 	// Polls frame data from all opened image streams
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
@@ -265,6 +282,23 @@ public class KinectWrapper
 	// Gets the new users' histogram frame, if one available. Returns S_OK if a new frame is available
 	[DllImportAttribute(@"Kinect2UnityClient.dll")]
 	public static extern int GetUserHistogramFrameData(ref IntPtr pUserHistogramFrame, ref Int64 liFrameTime, bool bUseColorData);
+	
+	
+	// Returns color frame coordinates of a 3d Kinect-point
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetKinectPointColorCoords(float x, float y, float z, out int cx, out int cy);
+	
+	// Returns depth frame coordinates of a 3d Kinect-point
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetKinectPointDepthCoords(float x, float y, float z, out int dx, out int dy);
+	
+	// Returns Kinect 3d-coordinates of a depth point
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetDepthPointKinectCoords(int dx, int dy, ushort depthValue, out float kx, out float ky, out float kz);
+	
+	// Returns color frame coordinates of a depth point
+	[DllImportAttribute(@"Kinect2UnityClient.dll")]
+	public static extern int GetDepthPointColorCoords(int dx, int dy, ushort depthValue, out int cx, out int cy);
 	
 
 	// Public unility functions
@@ -432,6 +466,7 @@ public class KinectWrapper
 		return bNewFrame;
 	}
 	
+	// Polls for new depth frame data
 	public static bool PollDepthFrame(ref DepthBuffer depthImage, ref BodyIndexBuffer bodyIndexImage, ref int minDepth, ref int maxDepth)
 	{
 		bool bNewFrame = false;
@@ -479,6 +514,20 @@ public class KinectWrapper
 		}
 		
 		return bNewFrame;
+	}
+	
+	// returns depth frame coordinates for the given 3d Kinect-space point
+	public static Vector2 GetKinectPointDepthCoords(Vector3 kinectPos)
+	{
+		int dx = 0, dy = 0;
+		int hr = GetKinectPointDepthCoords(kinectPos.x, kinectPos.y, kinectPos.z, out dx, out dy);
+		
+		if(hr == 0)
+		{
+			return new Vector2(dx, dy);
+		}
+		
+		return Vector2.zero;
 	}
 	
 }
