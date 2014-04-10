@@ -32,7 +32,7 @@ public class KinectManager : MonoBehaviour
 	private float MapsPercentHeight = 0f;
 	
 	// Minimum user distance in order to process skeleton data
-	public float minUserDistance = 1.0f;
+	public float minUserDistance = 0.5f;
 	
 	// Public Bool to determine whether to detect only the closest user or not
 	public bool detectClosestUser = true;
@@ -79,8 +79,8 @@ public class KinectManager : MonoBehaviour
 	private List<Int64> alUserIds;
 	private Dictionary<Int64, int> dictUserIdToIndex;
 	
-	// First user ID
-	private Int64 liFirstUserId = 0;
+	// Primary (first or closest) user ID
+	private Int64 liPrimaryUserId = 0;
 	
 	// Kinect to world matrix
 	private Matrix4x4 kinectToWorld;
@@ -138,7 +138,7 @@ public class KinectManager : MonoBehaviour
 	}
 	
 	// returns the UserID by the given index
-	public Int64 GetUserByIndex(int i)
+	public Int64 GetUserIdByIndex(int i)
 	{
 		if(i >= 0 && i < alUserIds.Count)
 		{
@@ -148,10 +148,10 @@ public class KinectManager : MonoBehaviour
 		return 0;
 	}
 	
-	// returns the UserID of the first (or closest) user, if any
-	public Int64 GetFirstUser()
+	// returns the UserID of the primary user (the first or the closest one), if there is any
+	public Int64 GetPrimaryUser()
 	{
-		return liFirstUserId;
+		return liPrimaryUserId;
 	}
 	
 	// returns the User position, relative to the Kinect-sensor, in meters
@@ -272,6 +272,188 @@ public class KinectManager : MonoBehaviour
 		}
 		
 		return Quaternion.identity;
+	}
+	
+	// checks if the left hand confidence for a user is high
+	// returns true if the confidence is high, false if it is low or user is not found
+	public bool IsLeftHandConfidenceHigh(Int64 userId)
+	{
+		if(dictUserIdToIndex.ContainsKey(userId))
+		{
+			int index = dictUserIdToIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				return (bodyFrame.bodyData[index].leftHandConfidence == KinectWrapper.TrackingConfidence.High);
+			}
+		}
+		
+		return false;
+	}
+	
+	// checks if the right hand confidence for a user is high
+	// returns true if the confidence is high, false if it is low or user is not found
+	public bool IsRightHandConfidenceHigh(Int64 userId)
+	{
+		if(dictUserIdToIndex.ContainsKey(userId))
+		{
+			int index = dictUserIdToIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				return (bodyFrame.bodyData[index].rightHandConfidence == KinectWrapper.TrackingConfidence.High);
+			}
+		}
+		
+		return false;
+	}
+	
+	// returns the left hand state for a user
+	public KinectWrapper.HandState GetLeftHandState(Int64 userId)
+	{
+		if(dictUserIdToIndex.ContainsKey(userId))
+		{
+			int index = dictUserIdToIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				return bodyFrame.bodyData[index].leftHandState;
+			}
+		}
+		
+		return KinectWrapper.HandState.NotTracked;
+	}
+	
+	// returns the right hand state for a user
+	public KinectWrapper.HandState GetRightHandState(Int64 userId)
+	{
+		if(dictUserIdToIndex.ContainsKey(userId))
+		{
+			int index = dictUserIdToIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				return bodyFrame.bodyData[index].rightHandState;
+			}
+		}
+		
+		return KinectWrapper.HandState.NotTracked;
+	}
+	
+	// returns the interaction box for the left hand of the specified user, in meters
+	public bool GetLeftHandInteractionBox(Int64 userId, ref Vector3 leftBotBack, ref Vector3 rightTopFront, bool bValidBox)
+	{
+		if(dictUserIdToIndex.ContainsKey(userId))
+		{
+			int index = dictUserIdToIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				KinectWrapper.BodyData bodyData = bodyFrame.bodyData[index];
+				bool bResult = true;
+				
+				if(bodyData.joint[(int)KinectWrapper.JointType.ShoulderRight].trackingState == KinectWrapper.TrackingState.Tracked &&
+					bodyData.joint[(int)KinectWrapper.JointType.HipLeft].trackingState == KinectWrapper.TrackingState.Tracked)
+				{
+					rightTopFront.x = bodyData.joint[(int)KinectWrapper.JointType.ShoulderRight].position.x;
+					leftBotBack.x = rightTopFront.x - 2 * (rightTopFront.x - bodyData.joint[(int)KinectWrapper.JointType.HipLeft].position.x);
+				}
+				else
+				{
+					bResult = bValidBox;
+				}
+					
+				if(bodyData.joint[(int)KinectWrapper.JointType.HipRight].trackingState == KinectWrapper.TrackingState.Tracked &&
+					bodyData.joint[(int)KinectWrapper.JointType.ShoulderRight].trackingState == KinectWrapper.TrackingState.Tracked)
+				{
+					leftBotBack.y = bodyData.joint[(int)KinectWrapper.JointType.HipRight].position.y;
+					rightTopFront.y = bodyData.joint[(int)KinectWrapper.JointType.ShoulderRight].position.y;
+					
+					float fDelta = (rightTopFront.y - leftBotBack.y) * 2 / 3;
+					leftBotBack.y += fDelta;
+					rightTopFront.y += fDelta;
+				}
+				else
+				{
+					bResult = bValidBox;
+				}
+					
+				if(bodyData.joint[(int)KinectWrapper.JointType.HipCenter].trackingState == KinectWrapper.TrackingState.Tracked)
+				{
+					leftBotBack.z = bodyData.joint[(int)KinectWrapper.JointType.HipCenter].position.z;
+					rightTopFront.z = leftBotBack.z - 0.5f;
+				}
+				else
+				{
+					bResult = bValidBox;
+				}
+				
+				return bResult;
+			}
+		}
+		
+		return false;
+	}
+	
+	// returns the interaction box for the right hand of the specified user, in meters
+	public bool GetRightHandInteractionBox(Int64 userId, ref Vector3 leftBotBack, ref Vector3 rightTopFront, bool bValidBox)
+	{
+		if(dictUserIdToIndex.ContainsKey(userId))
+		{
+			int index = dictUserIdToIndex[userId];
+			
+			if(index >= 0 && index < KinectWrapper.Constants.BodyCount && 
+				bodyFrame.bodyData[index].bIsTracked != 0)
+			{
+				KinectWrapper.BodyData bodyData = bodyFrame.bodyData[index];
+				bool bResult = true;
+				
+				if(bodyData.joint[(int)KinectWrapper.JointType.ShoulderLeft].trackingState == KinectWrapper.TrackingState.Tracked &&
+					bodyData.joint[(int)KinectWrapper.JointType.HipRight].trackingState == KinectWrapper.TrackingState.Tracked)
+				{
+					leftBotBack.x = bodyData.joint[(int)KinectWrapper.JointType.ShoulderLeft].position.x;
+					rightTopFront.x = leftBotBack.x + 2 * (bodyData.joint[(int)KinectWrapper.JointType.HipRight].position.x - leftBotBack.x);
+				}
+				else
+				{
+					bResult = bValidBox;
+				}
+					
+				if(bodyData.joint[(int)KinectWrapper.JointType.HipLeft].trackingState == KinectWrapper.TrackingState.Tracked &&
+					bodyData.joint[(int)KinectWrapper.JointType.ShoulderLeft].trackingState == KinectWrapper.TrackingState.Tracked)
+				{
+					leftBotBack.y = bodyData.joint[(int)KinectWrapper.JointType.HipLeft].position.y;
+					rightTopFront.y = bodyData.joint[(int)KinectWrapper.JointType.ShoulderLeft].position.y;
+					
+					float fDelta = (rightTopFront.y - leftBotBack.y) * 2 / 3;
+					leftBotBack.y += fDelta;
+					rightTopFront.y += fDelta;
+				}
+				else
+				{
+					bResult = bValidBox;
+				}
+					
+				if(bodyData.joint[(int)KinectWrapper.JointType.HipCenter].trackingState == KinectWrapper.TrackingState.Tracked)
+				{
+					leftBotBack.z = bodyData.joint[(int)KinectWrapper.JointType.HipCenter].position.z;
+					rightTopFront.z = leftBotBack.z - 0.5f;
+				}
+				else
+				{
+					bResult = bValidBox;
+				}
+				
+				return bResult;
+			}
+		}
+		
+		return false;
 	}
 	
 	
@@ -541,7 +723,7 @@ public class KinectManager : MonoBehaviour
 				// get the body position
 				Vector3 bodyPos = kinectToWorld.MultiplyPoint3x4(bodyData.position);
 				
-				if(liFirstUserId == 0)
+				if(liPrimaryUserId == 0)
 				{
 					// check if this is the closest user
 					bool bClosestUser = true;
@@ -583,24 +765,10 @@ public class KinectManager : MonoBehaviour
 				{
 					bodyData.joint[j].position = kinectToWorld.MultiplyPoint3x4(bodyData.joint[j].position);
 				
-					if((bodyData.liTrackingID == liFirstUserId) && (j == (int)KinectWrapper.JointType.HipCenter) &&
+					if((bodyData.liTrackingID == liPrimaryUserId) && (j == (int)KinectWrapper.JointType.HipCenter) &&
 						bodyData.joint[j].trackingState == KinectWrapper.TrackingState.Tracked)
 					{
 						string debugText = String.Format("Body Pos: {0}", bodyData.joint[j].position);
-						
-						//if(bodyData.rightHandState != KinectWrapper.HandState.Unknown)
-						{
-							debugText += "\n\nRight Hand: " + 
-								(bodyData.rightHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.rightHandState != KinectWrapper.HandState.Unknown && bodyData.rightHandState != KinectWrapper.HandState.NotTracked ? 
-									bodyData.rightHandState.ToString() : "");
-						}
-						
-						//if(bodyData.leftHandState != KinectWrapper.HandState.Unknown)
-						{
-							debugText += "\nLeft Hand: " + 
-								(bodyData.leftHandConfidence == KinectWrapper.TrackingConfidence.High && bodyData.leftHandState != KinectWrapper.HandState.Unknown && bodyData.leftHandState != KinectWrapper.HandState.NotTracked ? 
-									bodyData.leftHandState.ToString() : "");
-						}
 						
 						if(calibrationText)
 						{
@@ -633,17 +801,17 @@ public class KinectManager : MonoBehaviour
 			alUserIds.Add(userId);
 			dictUserIdToIndex[userId] = userIndex;
 			
-			if(liFirstUserId == 0)
+			if(liPrimaryUserId == 0)
 			{
-				liFirstUserId = userId;
-			}
-		}
+				liPrimaryUserId = userId;
 		
-		if(liFirstUserId != 0)
-		{
-			if(calibrationText != null && calibrationText.guiText.text != "")
-			{
-				calibrationText.guiText.text = "";
+				if(liPrimaryUserId != 0)
+				{
+					if(calibrationText != null && calibrationText.guiText.text != "")
+					{
+						calibrationText.guiText.text = "";
+					}
+				}
 			}
 		}
     }
@@ -655,19 +823,19 @@ public class KinectManager : MonoBehaviour
         alUserIds.Remove(userId);
 		dictUserIdToIndex.Remove(userId);
 		
-		if(liFirstUserId == userId)
+		if(liPrimaryUserId == userId)
 		{
 			if(alUserIds.Count > 0)
 			{
-				liFirstUserId = alUserIds[0];
+				liPrimaryUserId = alUserIds[0];
 			}
 			else
 			{
-				liFirstUserId = 0;
+				liPrimaryUserId = 0;
 			}
 		}
 		
-		if(liFirstUserId == 0)
+		if(liPrimaryUserId == 0)
 		{
 			//Debug.Log("Waiting for users.");
 			

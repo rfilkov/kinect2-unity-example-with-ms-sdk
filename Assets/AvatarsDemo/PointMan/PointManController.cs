@@ -11,7 +11,6 @@ public class PointManController : MonoBehaviour
 	
 	public GameObject Hip_Center;
 	public GameObject Spine;
-	public GameObject Spine_Shoulder;
 	public GameObject Neck;
 	public GameObject Head;
 	public GameObject Shoulder_Left;
@@ -30,6 +29,11 @@ public class PointManController : MonoBehaviour
 	public GameObject Knee_Right;
 	public GameObject Ankle_Right;
 	public GameObject Foot_Right;
+	public GameObject Spine_Shoulder;
+    public GameObject Hand_Tip_Left;
+    public GameObject Thumb_Left;
+    public GameObject Hand_Tip_Right;
+    public GameObject Thumb_Right;
 	
 	public LineRenderer LinePrefab;
 	
@@ -46,11 +50,31 @@ public class PointManController : MonoBehaviour
 	{
 		//store bones in a list for easier access
 		bones = new GameObject[] {
-			Hip_Center, Spine, Spine_Shoulder, Neck, Head,
-			Shoulder_Left, Elbow_Left, Wrist_Left, Hand_Left,
-			Shoulder_Right, Elbow_Right, Wrist_Right, Hand_Right,
-			Hip_Left, Knee_Left, Ankle_Left, Foot_Left,
-			Hip_Right, Knee_Right, Ankle_Right, Foot_Right
+			Hip_Center,
+            Spine,
+            Neck,
+            Head,
+            Shoulder_Left,
+            Elbow_Left,
+            Wrist_Left,
+            Hand_Left,
+            Shoulder_Right,
+            Elbow_Right,
+            Wrist_Right,
+            Hand_Right,
+            Hip_Left,
+            Knee_Left,
+            Ankle_Left,
+            Foot_Left,
+            Hip_Right,
+            Knee_Right,
+            Ankle_Right,
+            Foot_Right,
+            Spine_Shoulder,
+            Hand_Tip_Left,
+            Thumb_Left,
+            Hand_Tip_Right,
+            Thumb_Right
 		};
 		
 		// array holding the skeleton lines
@@ -68,11 +92,13 @@ public class PointManController : MonoBehaviour
 		initialRotation = transform.rotation;
 	}
 	
-	// Update is called once per frame
+
 	void Update () 
 	{
+		KinectManager manager = KinectManager.Instance;
+		
 		// get 1st player
-		Int64 userID = KinectManager.Instance != null ? KinectManager.Instance.GetFirstUser() : 0;
+		Int64 userID = manager ? manager.GetPrimaryUser() : 0;
 		
 		if(userID <= 0)
 		{
@@ -90,14 +116,17 @@ public class PointManController : MonoBehaviour
 				bones[i].transform.localPosition = Vector3.zero;
 				bones[i].transform.localRotation = Quaternion.identity;
 				
-				lines[i].gameObject.SetActive(false);
+				if(LinePrefab)
+				{
+					lines[i].gameObject.SetActive(false);
+				}
 			}
 			
 			return;
 		}
 		
 		// set the position in space
-		Vector3 posPointMan = KinectManager.Instance.GetUserPosition(userID);
+		Vector3 posPointMan = manager.GetUserPosition(userID);
 		posPointMan.z = !MirroredMovement ? -posPointMan.z : posPointMan.z;
 		
 		// store the initial position
@@ -114,21 +143,23 @@ public class PointManController : MonoBehaviour
 		{
 			if(bones[i] != null)
 			{
-				if(KinectManager.Instance.IsJointTracked(userID, i))
+				int joint = !MirroredMovement ? i : (int)KinectWrapper.GetMirrorJoint((KinectWrapper.JointType)i);
+				
+				if(manager.IsJointTracked(userID, joint))
 				{
 					bones[i].gameObject.SetActive(true);
 					
-					int joint = MirroredMovement ? (int)KinectWrapper.GetMirrorJoint((KinectWrapper.JointType)i): i;
-					Vector3 posJoint = KinectManager.Instance.GetJointPosition(userID, joint);
+					Vector3 posJoint = manager.GetJointPosition(userID, joint);
 					posJoint.z = !MirroredMovement ? -posJoint.z : posJoint.z;
-					Quaternion rotJoint = KinectManager.Instance.GetJointOrientation(userID, joint, !MirroredMovement);
+					
+					Quaternion rotJoint = manager.GetJointOrientation(userID, joint, !MirroredMovement);
 					
 					posJoint -= posPointMan;
-					posJoint.z = -posJoint.z;
 					
 					if(MirroredMovement)
 					{
 						posJoint.x = -posJoint.x;
+						posJoint.z = -posJoint.z;
 					}
 
 					bones[i].transform.localPosition = posJoint;
@@ -137,11 +168,10 @@ public class PointManController : MonoBehaviour
 					if(LinePrefab)
 					{
 						lines[i].gameObject.SetActive(true);
-						
-						Vector3 dirFromParent = KinectManager.Instance.GetJointDirection(userID, joint);
-						dirFromParent.z = !MirroredMovement ? -dirFromParent.z : dirFromParent.z;
-						
 						Vector3 posJoint2 = bones[i].transform.position;
+						
+						Vector3 dirFromParent = manager.GetJointDirection(userID, joint);
+						dirFromParent.z = !MirroredMovement ? -dirFromParent.z : dirFromParent.z;
 						Vector3 posParent = posJoint2 - dirFromParent;
 						
 						//lines[i].SetVertexCount(2);
