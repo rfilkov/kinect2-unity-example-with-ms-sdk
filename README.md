@@ -30,7 +30,7 @@ What Comes Next
 ---------------
 The recent announcement from MS-staff that they're going to provide native integration between Unity and Kinect v2, makes the further development of this project pointless. That's why I decided to stop it. It will continue as private project here: https://bitbucket.org/rfilkov/kinect2-unity-example-with-ms-sdk The goal will be to provide easy to use Kinect-features to all Unity developers: cursor control, interaction, avatar control, gesture recognition and optionally some extras like voice recognition, face tracking, etc. More information about the new project will be published on my blog: http://rfilkov.com
 
-Thanks You!
+Thank You!
 -----------
 My sincere thanks to all that have contributed to the development of this project, tested it or gave feedback. Special thanks to these guys for their collaboration: Davy Loots, Robert Cornfield and Andres Soechting!
 
