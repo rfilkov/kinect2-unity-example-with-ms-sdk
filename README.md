@@ -26,15 +26,17 @@ How to Switch from Mirrored to Non-Mirrored Movement
 ----------------------------------------------------
 To switch from mirrored to non mirrored cube-man, you need to do these two things: 1. Set the Y-rotation of PointManCtrl game object to 0, and 2. Disable 'Mirrored Movement'-parameter of the PointManController. PointManController is component of the PointMan game object (parented to PointManCtrl). To switch back to mirrored movement do the opposite: 1. Set the Y-rotation of PointManCtrl game object to 180 degrees, and 2. Enable 'Mirrored Movement'-parameter of the PointManController.
 
-What Comes Next
----------------
-The recent announcement from MS-staff that they're going to provide native integration between Unity and Kinect v2, makes the further development of this project pointless. That's why I decided to stop it. It will continue as private project here: https://bitbucket.org/rfilkov/kinect2-unity-example-with-ms-sdk The goal will be to provide easy to use Kinect-features to all Unity developers: cursor control, interaction, avatar control, gesture recognition and optionally some extras like voice recognition, face tracking, etc. More information about the new project will be published on my blog: http://rfilkov.com
+The Current State
+-----------------
+Here is the actual Unity-asset: https://www.assetstore.unity3d.com/en/#!/content/18708
+Sorry for the price tag, but I have to compensate somehow the time I spend for support, research and development.
+Here you can find more info about the project: http://rfilkov.com/2014/08/01/kinect-v2-with-ms-sdk/
+And here are some useful tips and tricks regarding it: http://rfilkov.com/2015/01/25/kinect-v2-tips-tricks-examples/
 
 Thank You!
 -----------
 My sincere thanks to all that have contributed to the development of this project, tested it or gave feedback. Special thanks to these guys for their collaboration: Davy Loots, Robert Cornfield and Andres Soechting!
 
-Enjoy!
-
-R.
+Enjoy and greetings,
+Rumen
 
